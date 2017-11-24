@@ -25,8 +25,8 @@ void read_sec_hdr(FILE *fp, Elf64_Shdr *shdr) {
     fread(shdr, sizeof(Elf64_Shdr), 1, fp);
 }
 
-void read_dyntab_entry(FILE *fp, Elf64_Dyn *dynsym) {
-    fread(dynsym, sizeof(Elf64_Dyn), 1, fp);
+void read_dyntab_entry(FILE *fp, Elf64_Dyn *dynamic) {
+    fread(dynamic, sizeof(Elf64_Dyn), 1, fp);
 }
 
 char *read_string_table(FILE *fp, const Elf64_Shdr *shdr) {
@@ -109,7 +109,6 @@ func DoELF(workdir string, path string) (*ELFSOInfo, error) {
 
 	for i := range dynamic {
 		switch dynamic[i].d_tag {
-		case C.DT_NULL:
 		case C.DT_NEEDED:
 			needed := string_from_table(strtab, a2i(dynamic[i].d_un))
 			ret.Needed = append(ret.Needed, needed)
