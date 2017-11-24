@@ -3,9 +3,10 @@ package main
 import (
 	"database/sql"
 	"log"
+	"strings"
+	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
-	"sync"
 )
 
 var DB *sql.DB
@@ -29,7 +30,7 @@ func dbExists(info *PackageSOInfo) (bool, error) {
 		return false, err
 	}
 
-	rows, err := DB.Query("SELECT * FROM contents WHERE package=? AND version=?", info.Package, info.Version)
+	rows, err := DB.Query("SELECT * FROM dpkg_contents WHERE package=? AND version=?", info.Package, info.Version)
 	if err != nil {
 		return false, err
 	}
@@ -49,18 +50,20 @@ func dbInsert(info *PackageSOInfo) error {
 	if err != nil {
 		return err
 	}
-	stmt1, _ := tx.Prepare("INSERT INTO so_provides(package, version, provides) VALUES(?, ?, ?)")
+	stmt1, _ := tx.Prepare("INSERT INTO so_provides(package, version, provides, sover) VALUES(?, ?, ?, ?)")
 	defer stmt1.Close()
 	for _, provides := range info.Provides {
-		_, err := stmt1.Exec(info.Package, info.Version, provides)
+		name, sover := SplitSoName(provides)
+		_, err := stmt1.Exec(info.Package, info.Version, name, sover)
 		if err != nil {
 			return err
 		}
 	}
-	stmt2, _ := tx.Prepare("INSERT INTO so_depends(package, version, depends) VALUES(?, ?, ?)")
+	stmt2, _ := tx.Prepare("INSERT INTO so_depends(package, version, depends, sover) VALUES(?, ?, ?, ?)")
 	defer stmt2.Close()
 	for _, depends := range info.Depends {
-		_, err := stmt2.Exec(info.Package, info.Version, depends)
+		name, sover := SplitSoName(depends)
+		_, err := stmt2.Exec(info.Package, info.Version, name, sover)
 		if err != nil {
 			return err
 		}
@@ -75,4 +78,13 @@ func dbInsert(info *PackageSOInfo) error {
 	}
 	tx.Commit()
 	return nil
+}
+
+func SplitSoName(soname string) (name, sover string) {
+	a := strings.LastIndex(soname, ".so")
+	if a == -1 {
+		return soname, ""
+	} else {
+		return soname[:a+3], soname[a+3:]
+	}
 }

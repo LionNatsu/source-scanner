@@ -18,21 +18,29 @@ Installation Guide & Usages
     CREATE TABLE so_depends (
         package TEXT,
         version TEXT,
-        depends TEXT
+        depends TEXT,
+        sover   TEXT
     );
     CREATE TABLE so_provides (
         package  TEXT,
         version  TEXT,
-        provides TEXT
+        provides TEXT,
+        sover    TEXT
     );
-    CREATE TABLE contents (
+    CREATE TABLE dpkg_contents (
         package  TEXT,
         version  TEXT,
         contents TEXT
     );
-    CREATE INDEX idx_contents ON contents (
+    CREATE INDEX idx_dpkg_contents ON contents (
         package,
         version
+    );
+    CREATE INDEX idx_so_depends ON so_depends (
+        depends
+    );
+    CREATE INDEX idx_so_provides ON so_provides (
+        provides
     );
 
 5. Enjoy!
