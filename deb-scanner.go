@@ -40,7 +40,7 @@ func scan() {
 			return nil
 		}
 		if strings.HasSuffix(info.Name(), ".deb") {
-			clock = (clock + 1) % numCPU
+			clock++
 			goroutinePool <- 1
 			go DoPackage(WorkDir+strconv.Itoa(clock), path)
 		}
@@ -48,11 +48,11 @@ func scan() {
 	})
 }
 
-func pushItem(ch chan<- string, path string) {
+func pushItem(ch chan<- string, workdir string, path string) {
 	if path == "" {
 		return
 	}
-	if info, err := os.Lstat(filepath.Join(WorkDir, path)); err != nil || info.IsDir() {
+	if info, err := os.Lstat(filepath.Join(workdir, path)); err != nil || info.IsDir() {
 		return
 	}
 	ch <- path
@@ -60,9 +60,7 @@ func pushItem(ch chan<- string, path string) {
 
 func DoPackage(workdir string, deb string) {
 	defer func() { <-goroutinePool }()
-	if err := os.RemoveAll(workdir); err != nil {
-		log.Fatalln(err)
-	}
+	exec.Command("rm", "-rf", workdir).Run()
 	if err := os.Mkdir(workdir, 0777); err != nil {
 		log.Fatalln(err)
 	}
@@ -99,14 +97,14 @@ func DoPackage(workdir string, deb string) {
 		for {
 			line, _, err := tarStdout.ReadLine()
 			if err != nil {
-				pushItem(queue, lastLine)
+				pushItem(queue, workdir, lastLine)
 				if err != io.EOF {
 					log.Fatalln(deb, err)
 				}
 				close(cancelled)
 				return
 			}
-			pushItem(queue, lastLine)
+			pushItem(queue, workdir, lastLine)
 			lastLine = string(line)
 		}
 	}()
