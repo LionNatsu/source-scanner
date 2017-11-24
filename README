@@ -28,9 +28,9 @@ Installation Guide & Usages
         sover    TEXT
     );
     CREATE TABLE dpkg_contents (
-        package  TEXT,
-        version  TEXT,
-        contents TEXT
+        package TEXT,
+        version TEXT,
+        content TEXT
     );
     CREATE INDEX idx_dpkg_contents ON contents (
         package,

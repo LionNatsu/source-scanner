@@ -50,7 +50,10 @@ func dbInsert(info *PackageSOInfo) error {
 	if err != nil {
 		return err
 	}
-	stmt1, _ := tx.Prepare("INSERT INTO so_provides(package, version, provides, sover) VALUES(?, ?, ?, ?)")
+	stmt1, err := tx.Prepare("INSERT INTO so_provides(package, version, provides, sover) VALUES(?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
 	defer stmt1.Close()
 	for _, provides := range info.Provides {
 		name, sover := SplitSoName(provides)
@@ -59,7 +62,10 @@ func dbInsert(info *PackageSOInfo) error {
 			return err
 		}
 	}
-	stmt2, _ := tx.Prepare("INSERT INTO so_depends(package, version, depends, sover) VALUES(?, ?, ?, ?)")
+	stmt2, err := tx.Prepare("INSERT INTO so_depends(package, version, depends, sover) VALUES(?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
 	defer stmt2.Close()
 	for _, depends := range info.Depends {
 		name, sover := SplitSoName(depends)
@@ -68,7 +74,10 @@ func dbInsert(info *PackageSOInfo) error {
 			return err
 		}
 	}
-	stmt3, _ := tx.Prepare("INSERT INTO contents(package, version, contents) VALUES(?, ?, ?)")
+	stmt3, err := tx.Prepare("INSERT INTO dpkg_contents(package, version, content) VALUES(?, ?, ?)")
+	if err != nil {
+		return err
+	}
 	defer stmt3.Close()
 	for _, contents := range info.Contents {
 		_, err := stmt3.Exec(info.Package, info.Version, contents)
