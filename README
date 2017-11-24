@@ -1,0 +1,45 @@
+Installation Guide & Usages
+---------------------------
+
+1. Clone this repository into your $GOPATH. For example:
+
+    /home/<username>/go/src/somap
+
+2. Get dependency.
+
+    go get github.com/mattn/go-sqlite3
+
+3. Build anywhere.
+
+    go build somap
+
+4. Prepare an empty sqlite3 database called "somap.db".
+
+    CREATE TABLE so_depends (
+        package TEXT,
+        version TEXT,
+        depends TEXT
+    );
+    CREATE TABLE so_provides (
+        package  TEXT,
+        version  TEXT,
+        provides TEXT
+    );
+    CREATE TABLE contents (
+        package  TEXT,
+        version  TEXT,
+        contents TEXT
+    );
+    CREATE INDEX idx_contents ON contents (
+        package,
+        version
+    );
+
+5. Enjoy!
+
+    sudo ./somap os-amd64
+    
+    # It takes one arguement, the directory to scan.
+    
+    # It needs root to work around uncompressing deb and deleting its
+    # temporary files which have special attributes.
