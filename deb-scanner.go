@@ -31,7 +31,7 @@ var numCPU = runtime.NumCPU()
 var goroutinePool = make(chan int, numCPU)
 var clock int
 
-func main() {
+func scan() {
 	if len(os.Args) != 2 {
 		log.Fatalln("not enough arguments")
 	}
