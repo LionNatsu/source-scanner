@@ -3,7 +3,7 @@ Installation Guide & Usages
 
 1. Clone this repository into your $GOPATH. For example:
 
-    /home/<username>/go/src/somap
+    /home/<username>/go/src/source-scanner
 
 2. Get dependency.
 
@@ -11,43 +11,10 @@ Installation Guide & Usages
 
 3. Build anywhere.
 
-    go build somap
-
-4. Prepare an empty sqlite3 database called "somap.db".
-
-    CREATE TABLE so_depends (
-        package TEXT,
-        version TEXT,
-        depends TEXT,
-        sover   TEXT
-    );
-    CREATE TABLE so_provides (
-        package  TEXT,
-        version  TEXT,
-        provides TEXT,
-        sover    TEXT
-    );
-    CREATE TABLE dpkg_contents (
-        package TEXT,
-        version TEXT,
-        content TEXT
-    );
-    CREATE INDEX idx_dpkg_contents ON contents (
-        package,
-        version
-    );
-    CREATE INDEX idx_so_depends ON so_depends (
-        depends
-    );
-    CREATE INDEX idx_so_provides ON so_provides (
-        provides
-    );
+    go build source-scanner
 
 5. Enjoy!
 
-    sudo ./somap os-amd64
+    ./source-scanner .
     
     # It takes one arguement, the directory to scan.
-    
-    # It needs root to work around uncompressing deb and deleting its
-    # temporary files which have special attributes.
