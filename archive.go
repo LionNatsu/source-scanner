@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"os/exec"
+	"io/ioutil"
 )
 
 type ArFileDescriptor struct {
@@ -77,9 +78,9 @@ func TarFind(input io.Reader, file string) (*tar.Header, io.Reader) {
 	}
 }
 
-func Decompress(file string, input io.Reader) io.Reader {
+func Decompress(file string, input io.Reader) io.ReadCloser {
 	if strings.HasSuffix(file, ".gz") {
-		return GzDecompress(input)
+		return ioutil.NopCloser(GzDecompress(input))
 	}
 	if strings.HasSuffix(file, ".xz") {
 		return XzDecompress(input)
@@ -95,7 +96,7 @@ func GzDecompress(input io.Reader) io.Reader {
 	return r
 }
 
-func XzDecompress(input io.Reader) io.Reader {
+func XzDecompress(input io.Reader) io.ReadCloser {
 	var xzReader, w = io.Pipe()
 
 	var xzCmd = exec.Command("xz", "-d")

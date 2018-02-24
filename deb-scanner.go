@@ -166,6 +166,7 @@ func DoPackage(info *PackageInfo) {
 	var dataFileReader = NewMeter(arReader, &decompressCurrent)
 
 	dataReader := Decompress(arInfo.Name, dataFileReader)
+	defer dataReader.Close()
 
 	var soname = make(map[string]bool, 20)
 	var needed = make(map[string]bool, 100)
@@ -230,6 +231,7 @@ func GetPackageInfo(deb string) *PackageInfo {
 		return nil
 	}
 	dataReader := Decompress(arInfo.Name, arReader)
+	defer dataReader.Close()
 	_, tarReader := TarFind(dataReader, "./control")
 	out, _ := ioutil.ReadAll(tarReader)
 	control := string(out)
