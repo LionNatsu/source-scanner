@@ -76,6 +76,9 @@ func scan() {
 		}
 		if strings.HasSuffix(info.Name(), ".deb") {
 			info := GetPackageInfo(os.Args[1] + "/" + path)
+			if info == nil {
+				return nil
+			}
 			Packages = append(Packages, info)
 			hashTotalSize += info.Size
 			decompressTotalSize += info.DataSize
@@ -234,12 +237,17 @@ var fieldRegex = regexp.MustCompile(`(?P<key>[^: \t\n\r\f\v]+)\s*:\s*(?P<value>.
 func GetPackageInfo(deb string) *PackageInfo {
 	f, err := os.Open(deb)
 	if err != nil {
-		log.Fatalln(deb, err)
+		log.Println(deb, err)
+		return nil
 	}
 	defer f.Close()
 
 	dataInfo, _ := ArFind(f, "data.tar.xz")
 	_, arReader := ArFind(f, "control.tar.gz")
+	if arReader == nil {
+		log.Println(deb, "deb corrupted")
+		return nil
+	}
 	gzReader := GzDecompress(arReader)
 	_, tarReader := TarFind(gzReader, "./control")
 	out, _ := ioutil.ReadAll(tarReader)
