@@ -7,6 +7,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"os/exec"
 )
 
 type ArFileDescriptor struct {
@@ -53,7 +54,7 @@ func ArFind(input io.ReadSeeker, file string) (*ArFileDescriptor, io.Reader) {
 		if string(buf[:2]) != "`\n" {
 			return nil, nil
 		}
-		if fd.Name == file {
+		if strings.HasPrefix(fd.Name, file) {
 			return &fd, input
 		}
 		offset := fd.Size
@@ -76,10 +77,38 @@ func TarFind(input io.Reader, file string) (*tar.Header, io.Reader) {
 	}
 }
 
+func Decompress(file string, input io.Reader) io.Reader {
+	if strings.HasSuffix(file, ".gz") {
+		return GzDecompress(input)
+	}
+	if strings.HasSuffix(file, ".xz") {
+		return XzDecompress(input)
+	}
+	return nil
+}
+
 func GzDecompress(input io.Reader) io.Reader {
 	r, err := gzip.NewReader(input)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	return r
+}
+
+func XzDecompress(input io.Reader) io.Reader {
+	var xzReader, w = io.Pipe()
+
+	var xzCmd = exec.Command("xz", "-d")
+	xzCmd.Stdin = input
+	xzCmd.Stdout = w
+
+	err := xzCmd.Start()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	go func() {
+		xzCmd.Wait()
+		w.Close()
+	}()
+	return xzReader
 }

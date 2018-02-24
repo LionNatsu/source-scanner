@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -163,32 +162,15 @@ func DoPackage(info *PackageInfo) {
 	f, _ := os.Open(info.Filename)
 	defer f.Close()
 
-	var _, arReader = ArFind(f, "data.tar.xz")
-	var xzFileReader = NewMeter(arReader, &decompressCurrent)
+	var arInfo, arReader = ArFind(f, "data.tar.")
+	var dataFileReader = NewMeter(arReader, &decompressCurrent)
 
-	//xzReader := XzDecompress(xzFileReader)
-
-	var xzReader, w = io.Pipe()
-	defer xzReader.Close()
-
-	var xzCmd = exec.Command("xz", "-d")
-	xzCmd.Stdin = xzFileReader
-	xzCmd.Stdout = w
-
-	err := xzCmd.Start()
-	if err != nil {
-		log.Print(info.Package, err, "\n\n\n\n")
-		return
-	}
-	go func() {
-		xzCmd.Wait()
-		w.Close()
-	}()
+	dataReader := Decompress(arInfo.Name, dataFileReader)
 
 	var soname = make(map[string]bool, 20)
 	var needed = make(map[string]bool, 100)
 
-	var tarReader = tar.NewReader(xzReader)
+	var tarReader = tar.NewReader(dataReader)
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
@@ -242,14 +224,13 @@ func GetPackageInfo(deb string) *PackageInfo {
 	}
 	defer f.Close()
 
-	dataInfo, _ := ArFind(f, "data.tar.xz")
-	_, arReader := ArFind(f, "control.tar.gz")
+	arInfo, arReader := ArFind(f, "control.tar.")
 	if arReader == nil {
-		log.Println(deb, "deb corrupted", "\n\n\n\n")
+		log.Print(deb, " deb corrupted\n\n\n\n")
 		return nil
 	}
-	gzReader := GzDecompress(arReader)
-	_, tarReader := TarFind(gzReader, "./control")
+	dataReader := Decompress(arInfo.Name, arReader)
+	_, tarReader := TarFind(dataReader, "./control")
 	out, _ := ioutil.ReadAll(tarReader)
 	control := string(out)
 	var dict [][]string
@@ -261,6 +242,7 @@ func GetPackageInfo(deb string) *PackageInfo {
 	st, _ := f.Stat()
 	size := st.Size()
 	dict = append(dict, []string{"Filename", deb}, []string{"Size", strconv.FormatInt(size, 10)})
+	dataInfo, _ := ArFind(f, "data.tar.")
 	pi := &PackageInfo{
 		Package:  Deb822Find(dict, "Package"),
 		Version:  Deb822Find(dict, "Version"),
