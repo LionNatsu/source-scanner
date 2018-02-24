@@ -245,7 +245,7 @@ func GetPackageInfo(deb string) *PackageInfo {
 	dataInfo, _ := ArFind(f, "data.tar.xz")
 	_, arReader := ArFind(f, "control.tar.gz")
 	if arReader == nil {
-		log.Println(deb, "deb corrupted")
+		log.Println(deb, "deb corrupted", "\n\n\n\n")
 		return nil
 	}
 	gzReader := GzDecompress(arReader)
