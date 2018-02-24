@@ -10,27 +10,73 @@ import (
 )
 
 var DB *sql.DB
-var lockInit = &sync.Mutex{}
+var lockWrite = &sync.Mutex{}
 
 func dbInit() error {
-	lockInit.Lock()
-	defer lockInit.Unlock()
 	if DB == nil {
-		db, err := sql.Open("sqlite3", "file:somap.db")
+		db, err := sql.Open("sqlite3", "file:source.db")
 		if err != nil {
 			return err
 		}
 		DB = db
+		_, err = DB.Exec(
+			`
+PRAGMA journal_mode=WAL;
+CREATE TABLE IF NOT EXISTS repository (
+  	filename	TEXT PRIMARY KEY,
+	package	TEXT,
+	version	TEXT,
+	hash	TEXT,
+	size	INTEGER,
+	mtime	INTEGER
+);
+CREATE TABLE IF NOT EXISTS elf_depends (
+	package	TEXT,
+	version	TEXT,
+	depends	TEXT,
+	sover	TEXT
+);
+CREATE TABLE IF NOT EXISTS elf_provides (
+	package	TEXT,
+	version	TEXT,
+	provides	TEXT,
+	sover	TEXT
+);
+CREATE TABLE IF NOT EXISTS package_files (
+	package	TEXT,
+	version	TEXT,
+	filename	TEXT,
+	size	INTEGER,
+	mode	INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_elf_depends_pkg ON elf_depends (
+	package,
+	version
+);
+CREATE INDEX IF NOT EXISTS idx_elf_depends ON elf_depends (
+	depends
+);
+CREATE INDEX IF NOT EXISTS idx_elf_provides_pkg ON elf_provides (
+	package,
+	version
+);
+CREATE INDEX IF NOT EXISTS idx_elf_provides ON elf_provides (
+	provides
+);
+CREATE INDEX IF NOT EXISTS idx_package_files ON package_files (
+	package,
+	version
+);
+`)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 	return nil
 }
 
-func dbExists(info *PackageSOInfo) (bool, error) {
-	if err := dbInit(); err != nil {
-		return false, err
-	}
-
-	rows, err := DB.Query("SELECT * FROM dpkg_contents WHERE package=? AND version=?", info.Package, info.Version)
+func dbExists(info *PackageInfo) (bool, error) {
+	rows, err := DB.Query("SELECT * FROM repository WHERE filename=? AND mtime=?", info.Filename, info.Mtime)
 	if err != nil {
 		return false, err
 	}
@@ -38,51 +84,98 @@ func dbExists(info *PackageSOInfo) (bool, error) {
 	return rows.Next(), nil
 }
 
-func dbInsert(info *PackageSOInfo) error {
-	log.Println("insert...")
-	defer log.Println("insert...OK")
-
-	if err := dbInit(); err != nil {
-		return err
-	}
-
+func dbInsert(info *PackageInfo) error {
 	tx, err := DB.Begin()
 	if err != nil {
 		return err
 	}
-	stmt1, err := tx.Prepare("INSERT INTO so_provides(package, version, provides, sover) VALUES(?, ?, ?, ?)")
-	if err != nil {
-		return err
-	}
-	defer stmt1.Close()
-	for _, provides := range info.Provides {
-		name, sover := SplitSoName(provides)
-		_, err := stmt1.Exec(info.Package, info.Version, name, sover)
+	lockWrite.Lock()
+	defer lockWrite.Unlock()
+	{
+		if _, err = tx.Exec(
+			"INSERT OR REPLACE INTO repository VALUES(?,?,?,?,?,?)",
+			info.Filename,
+			info.Package,
+			info.Version,
+			info.SHA256,
+			info.Size,
+			info.Mtime,
+		); err != nil {
+			return err
+		}
+
+		if _, err = tx.Exec(
+			"DELETE FROM elf_provides WHERE package=? AND version=?",
+			info.Package,
+			info.Version,
+		); err != nil {
+			return err
+		}
+		stmt1, err := tx.Prepare("INSERT INTO elf_provides VALUES(?,?,?,?)")
 		if err != nil {
 			return err
 		}
-	}
-	stmt2, err := tx.Prepare("INSERT INTO so_depends(package, version, depends, sover) VALUES(?, ?, ?, ?)")
-	if err != nil {
-		return err
-	}
-	defer stmt2.Close()
-	for _, depends := range info.Depends {
-		name, sover := SplitSoName(depends)
-		_, err := stmt2.Exec(info.Package, info.Version, name, sover)
+		defer stmt1.Close()
+		for _, provides := range info.Provides {
+			name, sover := SplitSoName(provides)
+			if _, err := stmt1.Exec(
+				info.Package,
+				info.Version,
+				name,
+				sover,
+			); err != nil {
+				return err
+			}
+		}
+
+		if _, err = tx.Exec(
+			"DELETE FROM elf_depends WHERE package=? AND version=?",
+			info.Package,
+			info.Version,
+		); err != nil {
+			return err
+		}
+		stmt2, err := tx.Prepare("INSERT INTO elf_depends VALUES(?,?,?,?)")
 		if err != nil {
 			return err
 		}
-	}
-	stmt3, err := tx.Prepare("INSERT INTO dpkg_contents(package, version, content) VALUES(?, ?, ?)")
-	if err != nil {
-		return err
-	}
-	defer stmt3.Close()
-	for _, contents := range info.Contents {
-		_, err := stmt3.Exec(info.Package, info.Version, contents)
+		defer stmt2.Close()
+		for _, depends := range info.Depends {
+			name, sover := SplitSoName(depends)
+			_, err := stmt2.Exec(
+				info.Package,
+				info.Version,
+				name,
+				sover,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		if _, err = tx.Exec(
+			"DELETE FROM package_files WHERE package=? AND version=?",
+			info.Package,
+			info.Version,
+		); err != nil {
+			return err
+		}
+		stmt3, err := tx.Prepare("INSERT INTO package_files VALUES(?,?,?,?,?)")
 		if err != nil {
 			return err
+		}
+		defer stmt3.Close()
+		for _, file := range info.Contents {
+			_, err := stmt3.Exec(
+				info.Package,
+				info.Version,
+				file.Name,
+				file.Size,
+				file.Mode,
+			)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	tx.Commit()
