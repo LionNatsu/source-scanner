@@ -11,7 +11,7 @@ func main() {
 	var intCh = make(chan os.Signal, 1)
 	signal.Notify(intCh, os.Interrupt)
 
-	if len(os.Args) != 2 {
+	if len(os.Args) != 3 {
 		log.Fatalln("not enough arguments")
 	}
 
@@ -23,9 +23,9 @@ func main() {
 
 	pwd, err := os.Getwd()
 	if err != nil {
-		log.Fatalln("not enough arguments")
+		log.Fatalln(err)
 	}
-	dbInit(pwd)
+	dbInit(pwd, os.Args[2])
 	os.Chdir(os.Args[1])
 	scan()
 }

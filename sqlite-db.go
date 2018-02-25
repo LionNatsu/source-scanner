@@ -13,9 +13,9 @@ import (
 var DB *sql.DB
 var lockWrite = &sync.Mutex{}
 
-func dbInit(pwd string) error {
+func dbInit(pwd, db string) error {
 	if DB == nil {
-		db, err := sql.Open("sqlite3", "file:"+filepath.Join(pwd, "source.db"))
+		db, err := sql.Open("sqlite3", "file:"+filepath.Join(pwd, db+".db"))
 		if err != nil {
 			return err
 		}
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS package_files (
 	version	TEXT,
 	filename	TEXT,
 	size	INTEGER,
-	mode	INTEGER
+	type	INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_elf_depends_pkg ON elf_depends (
 	package,
@@ -172,7 +172,7 @@ func dbInsert(info *PackageInfo) error {
 				info.Version,
 				file.Name,
 				file.Size,
-				file.Mode,
+				file.Type,
 			)
 			if err != nil {
 				return err

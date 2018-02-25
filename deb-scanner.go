@@ -20,7 +20,7 @@ import (
 type FileInfo struct {
 	Name string
 	Size int64
-	Mode int64
+	Type byte
 }
 
 type PackageInfo struct {
@@ -169,7 +169,7 @@ func DoPackage(info *PackageInfo) {
 }
 
 func JobContentsUpdate(info *PackageInfo, header *tar.Header) {
-	info.Contents = append(info.Contents, &FileInfo{Name: header.Name, Size: header.Size, Mode: header.Mode})
+	info.Contents = append(info.Contents, &FileInfo{Name: header.Name, Size: header.Size, Type: header.Typeflag})
 	atomic.AddInt64(&filesCurrent, 1)
 }
 
