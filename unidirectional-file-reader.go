@@ -55,7 +55,7 @@ func (r *UDFR) readByte(buffer bool) (byte, error) {
 	var err error
 	if r.cur == r.edge {
 		// Reading on the edge
-		if buffer && !framePresent {
+		if !framePresent {
 			frame = make([]byte, FileReaderBlockSize)
 			r.buffer[frameIndex] = frame
 		}
@@ -97,11 +97,16 @@ func (r *UDFR) Seek(offset int64, whence int, buffer bool) (int64, error) {
 			return r.cur, nil
 		}
 		newCur := r.cur + offset
-		for r.cur < newCur {
-			_, err := r.readByte(buffer)
-			if err != nil {
-				return r.cur, err
+		if buffer {
+			for r.cur < newCur {
+				_, err := r.readByte(buffer)
+				if err != nil {
+					return r.cur, err
+				}
 			}
+		} else {
+			r.cur = newCur
+			return r.cur, nil
 		}
 		return r.cur, nil
 	default:
