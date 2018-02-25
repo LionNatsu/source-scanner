@@ -41,7 +41,7 @@ var (
 	ErrNotSupportedELFArch = errors.New("ELF architecture is not supported")
 )
 
-func DoELF(input io.Reader, info *ELFSOInfo) error {
+func analyseELF(input io.Reader, info *ELFSOInfo) error {
 	var buffer = NewUDFR(input)
 	var buf []byte
 

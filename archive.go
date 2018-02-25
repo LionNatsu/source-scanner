@@ -4,11 +4,11 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"io"
+	"io/ioutil"
 	"log"
+	"os/exec"
 	"strconv"
 	"strings"
-	"os/exec"
-	"io/ioutil"
 )
 
 type ArFileDescriptor struct {

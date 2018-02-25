@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,7 +37,7 @@ type PackageInfo struct {
 
 	Provides []string
 	Depends  []string
-	Contents []FileInfo
+	Contents []*FileInfo
 }
 
 var WorkDir string
@@ -111,12 +110,104 @@ func scan() {
 		}
 	}()
 	for index := range Packages {
-		goroutinePool <- 1
-		goroutineWait.RLock()
-		go DoPackage(Packages[index])
+		goroutinePool <- 1    // queue++
+		goroutineWait.RLock() // "reader"++
+		go func() {
+			DoPackage(Packages[index])
+			Packages[index] = nil
+		}()
 	}
-	goroutineWait.Lock()
+	goroutineWait.Lock() // Acquire "writer" lock: no "reader" -- no working goroutine
 	goroutineWait.Unlock()
+}
+
+func DoPackage(info *PackageInfo) {
+	defer goroutineWait.RUnlock() // "reader"--
+	defer func() {
+		<-goroutinePool // queue--
+		atomic.AddInt64(&packagesCurrent, 1)
+	}()
+
+	if exists, err := dbExists(info); err != nil {
+		log.Fatalln(info.Package, err)
+		return
+	} else if exists { // Jump
+		atomic.AddInt64(&hashCurrent, info.Size)
+		atomic.AddInt64(&decompressCurrent, info.DataSize)
+		return
+	}
+
+	JobChecksum(info)
+
+	f, _ := os.Open(info.Filename)
+	defer f.Close()
+
+	var arInfo, arReader = ArFind(f, "data.tar.")
+	var dataFileReader = NewMeter(arReader, &decompressCurrent)
+
+	dataReader := Decompress(arInfo.Name, dataFileReader)
+	defer dataReader.Close()
+
+	// Use map to ignore duplication fast
+	var soname = make(map[string]bool, 20)
+	var needed = make(map[string]bool, 100)
+
+	var tarReader = tar.NewReader(dataReader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			log.Print(info.Package, " ", err, "\n\n\n\n")
+			return
+		}
+		JobContentsUpdate(info, header)
+		JobELFDependencyUpdate(soname, needed, header.Name, tarReader)
+	}
+	JobELFDependencyFinal(info, soname, needed)
+
+	if err := dbInsert(info); err != nil {
+		log.Fatalln(info.Package, err)
+	}
+}
+
+func JobContentsUpdate(info *PackageInfo, header *tar.Header) {
+	info.Contents = append(info.Contents, &FileInfo{Name: header.Name, Size: header.Size, Mode: header.Mode})
+	atomic.AddInt64(&filesCurrent, 1)
+}
+
+func JobELFDependencyUpdate(soname, needed map[string]bool, file string, reader io.Reader) {
+	var soInfo ELFSOInfo
+	err := analyseELF(reader, &soInfo)
+	if err == nil {
+		if soInfo.SoName != "" && InRPath(file) {
+			soname[soInfo.SoName] = true
+		}
+		for _, soDep := range soInfo.Needed {
+			needed[soDep] = true
+		}
+		atomic.AddInt64(&elfsCurrent, 1)
+	}
+}
+
+func JobELFDependencyFinal(info *PackageInfo, soname, needed map[string]bool) {
+	// Collect so file names
+	for provides := range soname {
+		info.Provides = append(info.Provides, provides)
+	}
+	// Collect so file dependencies (remove self-resolved dependencies)
+DEPENDS:
+	for depends := range needed {
+		if _, exist := soname[depends]; exist { // short path
+			continue DEPENDS
+		}
+		for provides := range soname {
+			if MeetSoName(provides, depends) {
+				continue DEPENDS
+			}
+		}
+		info.Depends = append(info.Depends, depends)
+	}
 }
 
 func JobChecksum(info *PackageInfo) {
@@ -139,80 +230,6 @@ func JobChecksum(info *PackageInfo) {
 	SHA256 := fmt.Sprintf("%2x", h.Sum(nil))
 	info.SHA256 = SHA256
 	info.Deb822 = append(info.Deb822, []string{"SHA256", SHA256})
-}
-
-func DoPackage(info *PackageInfo) {
-	defer goroutineWait.RUnlock()
-	defer func() {
-		<-goroutinePool
-		atomic.AddInt64(&packagesCurrent, 1)
-	}()
-
-	if exists, err := dbExists(info); err != nil {
-		log.Fatalln(info.Filename, err)
-		return
-	} else if exists {
-		atomic.AddInt64(&hashCurrent, info.Size)
-		atomic.AddInt64(&decompressCurrent, info.DataSize)
-		return
-	}
-
-	JobChecksum(info)
-
-	f, _ := os.Open(info.Filename)
-	defer f.Close()
-
-	var arInfo, arReader = ArFind(f, "data.tar.")
-	var dataFileReader = NewMeter(arReader, &decompressCurrent)
-
-	dataReader := Decompress(arInfo.Name, dataFileReader)
-	defer dataReader.Close()
-
-	var soname = make(map[string]bool, 20)
-	var needed = make(map[string]bool, 100)
-
-	var tarReader = tar.NewReader(dataReader)
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Print(info.Package, err, "\n\n\n\n")
-			return
-		}
-		file := header.Name
-		var soInfo ELFSOInfo
-		err = DoELF(tarReader, &soInfo)
-		if err == nil {
-			if soInfo.SoName != "" && InRPath(file) {
-				soname[soInfo.SoName] = true
-			}
-			for _, soDep := range soInfo.Needed {
-				needed[soDep] = true
-			}
-			atomic.AddInt64(&elfsCurrent, 1)
-		}
-		atomic.AddInt64(&filesCurrent, 1)
-	}
-	for provides := range soname {
-		info.Provides = append(info.Provides, provides)
-	}
-DEPENDS:
-	for depends := range needed {
-		for provides := range soname {
-			if MeetSoName(provides, depends) {
-				continue DEPENDS
-			}
-		}
-		info.Depends = append(info.Depends, depends)
-	}
-	sort.Strings(info.Provides)
-	sort.Strings(info.Depends)
-
-	if err := dbInsert(info); err != nil {
-		log.Fatalln(info.Package, err)
-	}
 }
 
 var fieldRegex = regexp.MustCompile(`(?P<key>[^: \t\n\r\f\v]+)\s*:\s*(?P<value>.*)`)
