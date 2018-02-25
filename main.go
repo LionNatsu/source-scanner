@@ -21,7 +21,11 @@ func main() {
 		os.Exit(1)
 	}()
 
-	dbInit()
-	WorkDir = os.Args[1]
+	pwd, err := os.Getwd()
+	if err != nil {
+		log.Fatalln("not enough arguments")
+	}
+	dbInit(pwd)
+	os.Chdir(os.Args[1])
 	scan()
 }

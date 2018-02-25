@@ -7,14 +7,15 @@ import (
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
+	"path/filepath"
 )
 
 var DB *sql.DB
 var lockWrite = &sync.Mutex{}
 
-func dbInit() error {
+func dbInit(pwd string) error {
 	if DB == nil {
-		db, err := sql.Open("sqlite3", "file:source.db")
+		db, err := sql.Open("sqlite3", "file:"+filepath.Join(pwd, "source.db"))
 		if err != nil {
 			return err
 		}

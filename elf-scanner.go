@@ -60,7 +60,7 @@ func analyseELF(input io.Reader, info *ELFSOInfo) error {
 	}
 	info.Type = int(ehdr.e_type)
 
-	if info.Type != C.ET_EXEC || info.Type != C.ET_DYN { // not an executable or dynamic object
+	if info.Type != C.ET_EXEC && info.Type != C.ET_DYN { // not an executable or dynamic object
 		return nil
 	}
 

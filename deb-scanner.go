@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -40,8 +39,6 @@ type PackageInfo struct {
 	Contents []*FileInfo
 }
 
-var WorkDir string
-
 var NumCPU = runtime.NumCPU()
 var goroutinePool = make(chan int, NumCPU)
 
@@ -68,12 +65,12 @@ func progressBar(k int, name string, prev, current, total int64, interval int) {
 
 func scan() {
 	fmt.Print("\n\n\n")
-	filepath.Walk(WorkDir, func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
 		}
 		if strings.HasSuffix(info.Name(), ".deb") {
-			info := GetPackageInfo(os.Args[1] + "/" + path)
+			info := GetPackageInfo(path)
 			if info == nil {
 				return nil
 			}
@@ -112,10 +109,10 @@ func scan() {
 	for index := range Packages {
 		goroutinePool <- 1    // queue++
 		goroutineWait.RLock() // "reader"++
-		go func() {
+		go func(index int) {
 			DoPackage(Packages[index])
 			Packages[index] = nil
-		}()
+		}(index)
 	}
 	goroutineWait.Lock() // Acquire "writer" lock: no "reader" -- no working goroutine
 	goroutineWait.Unlock()
@@ -229,7 +226,6 @@ func JobChecksum(info *PackageInfo) {
 	f.Close()
 	SHA256 := fmt.Sprintf("%2x", h.Sum(nil))
 	info.SHA256 = SHA256
-	info.Deb822 = append(info.Deb822, []string{"SHA256", SHA256})
 }
 
 var fieldRegex = regexp.MustCompile(`(?P<key>[^: \t\n\r\f\v]+)\s*:\s*(?P<value>.*)`)
@@ -260,7 +256,6 @@ func GetPackageInfo(deb string) *PackageInfo {
 
 	st, _ := f.Stat()
 	size := st.Size()
-	dict = append(dict, []string{"Filename", deb}, []string{"Size", strconv.FormatInt(size, 10)})
 	dataInfo, _ := ArFind(f, "data.tar.")
 	pi := &PackageInfo{
 		Package:  Deb822Find(dict, "Package"),
@@ -289,13 +284,13 @@ func MeetSoName(have, want string) bool {
 
 func InRPath(file string) bool {
 	var prefixes = []string{
-		"/lib/",
-		"/lib64/",
-		"/usr/lib/",
-		"/usr/lib64/",
+		"./lib/",
+		"./lib64/",
+		"./usr/lib/",
+		"./usr/lib64/",
 	}
 	for _, prefix := range prefixes {
-		if strings.HasPrefix(file, WorkDir+prefix) {
+		if strings.HasPrefix(file, prefix) {
 			return true
 		}
 	}
