@@ -21,6 +21,7 @@ type FileInfo struct {
 	Name string
 	Size int64
 	Type byte
+	Mode int64
 }
 
 type PackageInfo struct {
@@ -29,7 +30,7 @@ type PackageInfo struct {
 	Filename string
 	Mtime    int64
 	SHA256   string
-	Deb822   [][]string
+	Deb822   string
 
 	Size     int64
 	DataSize int64
@@ -169,7 +170,7 @@ func DoPackage(info *PackageInfo) {
 }
 
 func JobContentsUpdate(info *PackageInfo, header *tar.Header) {
-	info.Contents = append(info.Contents, &FileInfo{Name: header.Name, Size: header.Size, Type: header.Typeflag})
+	info.Contents = append(info.Contents, &FileInfo{Name: header.Name, Size: header.Size, Type: header.Typeflag, Mode: header.Mode})
 	atomic.AddInt64(&filesCurrent, 1)
 }
 
@@ -262,7 +263,7 @@ func GetPackageInfo(deb string) *PackageInfo {
 		Version:  Deb822Find(dict, "Version"),
 		Filename: deb,
 		Mtime:    st.ModTime().Unix(),
-		Deb822:   dict,
+		Deb822:   control,
 		Size:     size,
 		DataSize: dataInfo.Size,
 	}

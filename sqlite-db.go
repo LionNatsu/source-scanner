@@ -3,11 +3,11 @@ package main
 import (
 	"database/sql"
 	"log"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
-	"path/filepath"
 )
 
 var DB *sql.DB
@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS repository (
 	version	TEXT,
 	hash	TEXT,
 	size	INTEGER,
-	mtime	INTEGER
+	mtime	INTEGER,
+	control TEXT
 );
 CREATE TABLE IF NOT EXISTS elf_depends (
 	package	TEXT,
@@ -48,7 +49,8 @@ CREATE TABLE IF NOT EXISTS package_files (
 	version	TEXT,
 	filename	TEXT,
 	size	INTEGER,
-	type	INTEGER
+	type	INTEGER,
+	mode	INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_elf_depends_pkg ON elf_depends (
 	package,
@@ -77,7 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_package_files ON package_files (
 }
 
 func dbExists(info *PackageInfo) (bool, error) {
-	rows, err := DB.Query("SELECT * FROM repository WHERE filename=? AND mtime=?", info.Filename, info.Mtime)
+	rows, err := DB.Query("SELECT * FROM repository WHERE filename=? AND mtime=?", info.Filename, info.Mtime, info.Deb822)
 	if err != nil {
 		return false, err
 	}
@@ -161,7 +163,7 @@ func dbInsert(info *PackageInfo) error {
 		); err != nil {
 			return err
 		}
-		stmt3, err := tx.Prepare("INSERT INTO package_files VALUES(?,?,?,?,?)")
+		stmt3, err := tx.Prepare("INSERT INTO package_files VALUES(?,?,?,?,?,?)")
 		if err != nil {
 			return err
 		}
@@ -173,6 +175,7 @@ func dbInsert(info *PackageInfo) error {
 				file.Name,
 				file.Size,
 				file.Type,
+				file.Mode,
 			)
 			if err != nil {
 				return err
