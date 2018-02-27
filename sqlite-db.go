@@ -99,13 +99,14 @@ func dbInsert(info *PackageInfo) error {
 	defer lockWrite.Unlock()
 	{
 		if _, err = tx.Exec(
-			"INSERT OR REPLACE INTO repository VALUES(?,?,?,?,?,?)",
+			"INSERT OR REPLACE INTO repository VALUES(?,?,?,?,?,?,?)",
 			info.Filename,
 			info.Package,
 			info.Version,
 			info.SHA256,
 			info.Size,
 			info.Mtime,
+			info.Deb822,
 		); err != nil {
 			return err
 		}
@@ -166,7 +167,7 @@ func dbInsert(info *PackageInfo) error {
 		); err != nil {
 			return err
 		}
-		stmt3, err := tx.Prepare("INSERT INTO package_files VALUES(?,?,?,?,?,?,?)")
+		stmt3, err := tx.Prepare("INSERT INTO package_files VALUES(?,?,?,?,?,?,?,?,?)")
 		if err != nil {
 			return err
 		}
