@@ -51,7 +51,9 @@ CREATE TABLE IF NOT EXISTS package_files (
 	name	TEXT,
 	size	INTEGER,
 	type	INTEGER,
-	mode	INTEGER
+	mode	INTEGER,
+	uid	INTEGER,
+	gid	INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_elf_depends_pkg ON elf_depends (
 	package,
@@ -178,6 +180,8 @@ func dbInsert(info *PackageInfo) error {
 				file.Size,
 				file.Type,
 				file.Mode,
+				file.UID,
+				file.GID,
 			)
 			if err != nil {
 				return err

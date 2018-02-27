@@ -23,6 +23,8 @@ type FileInfo struct {
 	Size int64
 	Type byte
 	Mode int64
+	UID  int
+	GID  int
 }
 
 type PackageInfo struct {
@@ -172,7 +174,16 @@ func DoPackage(info *PackageInfo) {
 
 func JobContentsUpdate(info *PackageInfo, header *tar.Header) {
 	dir, file := filepath.Split(header.Name)
-	info.Contents = append(info.Contents, &FileInfo{Path: dir,Name: file, Size: header.Size, Type: header.Typeflag, Mode: header.Mode})
+	info.Contents = append(info.Contents,
+		&FileInfo{
+			Path: dir,
+			Name: file,
+			Size: header.Size,
+			Type: header.Typeflag,
+			Mode: header.Mode,
+			UID:  header.Uid,
+			GID:  header.Gid,
+		})
 	atomic.AddInt64(&filesCurrent, 1)
 }
 
