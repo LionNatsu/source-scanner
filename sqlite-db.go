@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS elf_provides (
 CREATE TABLE IF NOT EXISTS package_files (
 	package	TEXT,
 	version	TEXT,
-	filename	TEXT,
+	path	TEXT,
+	name	TEXT,
 	size	INTEGER,
 	type	INTEGER,
 	mode	INTEGER
@@ -163,7 +164,7 @@ func dbInsert(info *PackageInfo) error {
 		); err != nil {
 			return err
 		}
-		stmt3, err := tx.Prepare("INSERT INTO package_files VALUES(?,?,?,?,?,?)")
+		stmt3, err := tx.Prepare("INSERT INTO package_files VALUES(?,?,?,?,?,?,?)")
 		if err != nil {
 			return err
 		}
@@ -172,6 +173,7 @@ func dbInsert(info *PackageInfo) error {
 			_, err := stmt3.Exec(
 				info.Package,
 				info.Version,
+				file.Path,
 				file.Name,
 				file.Size,
 				file.Type,
